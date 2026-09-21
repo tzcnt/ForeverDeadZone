@@ -134,6 +134,12 @@ assert(db.scale == 2 and db.sound == true and db.keep == true, "settings were no
 assert(said("restored from your settings macro"), "restore was not announced")
 assert(ForeverDeadZoneBar.w == 300, "restored scale was not applied to the bar")
 
+-- 7b. The client may return the body with a trailing newline; it must still be read.
+macros[1].body = macros[1].body .. "\n"
+db = session(nil)
+assert(db.scale == 2 and said("restored from your settings macro"), "a trailing newline broke the restore")
+macros[1].body = macros[1].body:gsub("%s+$", "")
+
 -- 8. Macro list arriving AFTER login: restored then, and never overwritten before it is read.
 db = session(nil, true)
 assert(db.scale == 2, "late macro list: settings lost")

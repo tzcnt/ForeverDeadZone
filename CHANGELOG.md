@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1
+- Fixed: settings were saved to the macro but not restored at login. The client returns the macro text with trailing whitespace, which the reader did not allow for.
+- `/dz keep` now says what happened at login: restored, not needed, or unreadable (and why).
+
 ## 0.3.0
 First public version.
 

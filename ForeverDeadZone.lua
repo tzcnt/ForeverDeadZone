@@ -230,7 +230,11 @@ local function readMacro()
     if not macroAPI() then return nil end
     local index = GetMacroIndexByName(macroName())
     if not index or index == 0 then return nil end
-    return (GetMacroBody(index) or ""):match("^/dz store (.+)$")
+    -- The client can hand a macro body back with a trailing newline or spaces. Take the
+    -- settings token only: it never contains whitespace.
+    local body = GetMacroBody(index)
+    keep.sawMacro = body ~= nil
+    return type(body) == "string" and body:match("^%s*/dz store (%S+)") or nil
 end
 
 local function writeMacro()
@@ -263,8 +267,14 @@ local function loadKept(final)
     local stored = readMacro()
     if stored then
         db.keep = true                                   -- the macro existing is the opt-in
-        if not keep.hadSV and decode(stored) then
+        if keep.hadSV then
+            keep.note = "macro found; not needed, saved settings loaded normally"
+        elseif not decode(stored) then
+            keep.note = "macro found but its contents could not be read: " .. tostring(stored):sub(1, 40)
+            say(keep.note)
+        else
             keep.restored = true
+            keep.note = "restored from the macro at login"
             if bar then applyAll() end
             say("the client did not load saved settings (beta bug), so they were restored from your settings macro.")
         end
