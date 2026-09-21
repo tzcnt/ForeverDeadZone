@@ -1,0 +1,14 @@
+package-as: ForeverDeadZone
+
+ignore:
+  - .github
+  - .gitignore
+  - .pkgmeta
+  - .claude
+  - CHANGELOG.md
+  - LICENSE
+  - README.md
+  - tests
+
+# No libraries, no externals. One Lua file and a TOC.
+enable-nolib-creation: no
