@@ -4,6 +4,7 @@
 ## Author: Thunderz
 ## Version: 0.3.0
 ## SavedVariables: ForeverDeadZoneDB
+## X-Curse-Project-ID: 1705435
 ## IconTexture: Interface\AddOns\ForeverDeadZone\media\icon.tga
 
 ForeverDeadZone.lua
