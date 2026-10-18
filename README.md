@@ -6,8 +6,8 @@ current target, which of four places you are standing in:
 | Bar | Meaning |
 |---|---|
 | **IN RANGE** (green) | 8 to 35 yards. Auto Shot works. |
-| **DEAD ZONE** (red) | Too close to shoot, and melee is not landing. You can do neither: move. |
-| **MELEE** (blue) | Your melee swings are landing. |
+| **DEAD ZONE** (red) | Too close to shoot, with no melee-range indication. |
+| **MELEE** (blue) | Melee range is detected or inferred from Attack activation or a recent swing. |
 | **TOO FAR** (grey) | Past 35 yards. |
 
 It also shows a distance bracket, such as `IN RANGE  8-28 yd`.
@@ -51,20 +51,22 @@ Everything here was measured on the beta client (build 1.60.1.69913), in and out
 - **Can I shoot?** comes from the game's own range check on Auto Shot. On this client that
   answer stays readable in combat.
 - **Too close or too far?** When Auto Shot says no, the 28 yard "follow" check says which.
-- **Melee or dead zone?** This is the hard part. Nothing an addon can ask separates the
-  first 8 yards: melee abilities report "in range" at any distance, and Forever's new
-  swing-timer range function does not answer addons. So the addon watches the game's event
-  for each of your auto attacks. A main-hand swing in the last swing-and-a-bit means melee
-  is landing, and the bar shows MELEE. **The catch:** when something first reaches you, the
-  bar reads DEAD ZONE until your first swing lands, about one swing later. It errs on the
-  side of the warning.
+- **Melee or dead zone?** Prefer the five-yard item range check when the client answers it.
+  Otherwise, an active Attack action gives an earlier melee estimate. Enable the game's
+  **Auto Attack / Auto Shot** switching and keep Attack on an action bar for this to work.
+  Attack state is refreshed on events, including Auto Shot stopping, which can precede
+  the melee-start event and the first swing. An active attack is not proof of distance:
+  manually enabling Attack outside melee range can produce a false indication.
+  A recent main-hand swing remains the fallback when no active Attack action is seen.
+  Auto Shot's range check takes priority when backing out, even while Attack is still active.
 - **Distance** is a bracket, not a number. The game does not tell addons how far away an
   enemy is. It will only answer "is the target within N yards?" for a handful of values of
   N, so the bar shows the gap between the nearest "no" and the nearest "yes". How tight that
   is depends on how many of those checks this client answers; `/dz probe` lists them.
 
-No libraries, no dependencies, no combat log. It polls ten times a second, and only does any
-work while you have an attackable target.
+No libraries, no dependencies, no combat log. Range is checked every frame, with the detailed
+checks skipped without an attackable target. Attack slots are scanned at login or when the
+action layout changes; toggles are read on events, not every frame.
 
 ## Install
 

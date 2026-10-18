@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.3.3
+
+- Use the Attack toggle for an earlier melee estimate when the five-yard item check is unavailable. Enable the game's Auto Attack / Auto Shot switching for this inference.
+- Prioritize Auto Shot range when backing out, even if Attack remains active briefly.
+- Refresh Attack state from toggle events and show its status in `/dz probe`.
+- Retain per-frame range updates from the local v0.3.2 change.
+
 ## 0.3.1
 - Fixed: settings were saved to the macro but not restored at login. The client returns the macro text with trailing whitespace, which the reader did not allow for.
 - `/dz keep` now says what happened at login: restored, not needed, or unreadable (and why).

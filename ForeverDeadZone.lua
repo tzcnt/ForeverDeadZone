@@ -11,9 +11,11 @@
 --     hostile targets in combat. With Auto Shot saying no, it tells TOO CLOSE from TOO FAR.
 --   * Melee abilities (range 0-0) answer yes at any distance, and Forever's own
 --     C_SwingTimer.IsTargetWithinSwingRange answers nil / "not checked" for addons, so
---     neither can find the melee edge. Two things can: a 5 yard item range check when the
---     client answers one, and otherwise the PLAYER_SWING event, fired for every auto
---     attack: a main-hand swing within the last swing-and-a-bit means melee is landing.
+--     neither can find the melee edge. Prefer a 5 yard item range check when available.
+--     Otherwise, an active Attack action gives an early melee estimate with automatic
+--     Auto Attack / Auto Shot switching enabled. It is not a direct distance check.
+--     A recent PLAYER_SWING remains the fallback when no active Attack action is seen.
+--     Auto Shot range always wins, including while Attack is still active on the way out.
 --
 -- DISTANCE: no call returns the distance to a hostile target. It is bracketed instead, from
 -- every "is the target within N yards?" check that answers: Auto Shot's two edges, the
@@ -65,6 +67,39 @@ local function ask(fn, ...)
     return v
 end
 
+-- Cache Attack slots on layout changes; refresh their toggles from events, not every frame.
+-- STOP_AUTOREPEAT_SPELL already exposes Attack as active before PLAYER_ENTER_COMBAT
+-- on this client. Waiting for the latter would delay the early melee indication.
+local attackSlots, attackActive = {}, false
+local attackEvents = {
+    START_AUTOREPEAT_SPELL = true, STOP_AUTOREPEAT_SPELL = true,
+    PLAYER_ENTER_COMBAT = true, PLAYER_LEAVE_COMBAT = true,
+    ACTIONBAR_UPDATE_STATE = true, ACTIONBAR_PAGE_CHANGED = true,
+    ACTIONBAR_SLOT_CHANGED = true, PLAYER_ENTERING_WORLD = true,
+    PLAYER_TARGET_CHANGED = true,
+}
+
+local function actionAPI(name)
+    return _G[name] or (C_ActionBar and C_ActionBar[name])
+end
+
+local function scanAttackSlots()
+    attackSlots = {}
+    local isAttack = actionAPI("IsAttackAction")
+    if not isAttack then return end
+    for slot = 1, 180 do
+        if ask(isAttack, slot) == true then attackSlots[#attackSlots + 1] = slot end
+    end
+end
+
+local function refreshAttack()
+    attackActive = false
+    local isCurrent = actionAPI("IsCurrentAction")
+    for _, slot in ipairs(attackSlots) do
+        if ask(isCurrent, slot) == true then attackActive = true return end
+    end
+end
+
 -- Range --------------------------------------------------------------------------------
 
 local itemInRange = C_Item and C_Item.IsItemInRange or IsItemInRange
@@ -109,7 +144,7 @@ local function currentState()
     if near == nil then return nil end
     if not near then return "far", text end
     local melee = within(5)                              -- exact, when the client answers it
-    if melee == nil then melee = GetTime() - lastSwing < swingLength + 0.5 end
+    if melee == nil then melee = attackActive or GetTime() - lastSwing < swingLength + 0.5 end
     return melee and "melee" or "dead", text
 end
 
@@ -304,14 +339,23 @@ ev:SetScript("OnEvent", function(self, event, ...)
         if db.locked ~= nil and not db.v then db.sound, db.scale = false, DEFAULTS.scale end
         db.v = 2
         for k, v in pairs(DEFAULTS) do if db[k] == nil then db[k] = v end end
+        scanAttackSlots()
+        refreshAttack()
         build()
         loadKept(keep.macrosSeen)
         self:RegisterEvent("PLAYER_REGEN_ENABLED")
         pcall(self.RegisterEvent, self, "PLAYER_SWING")           -- Forever only
+        for eventName in pairs(attackEvents) do pcall(self.RegisterEvent, self, eventName) end
         -- UPDATE_MACROS says when the list has arrived; the timer covers a client where it never fires.
         if not keep.ready then C_Timer.After(15, function() loadKept(true) end) end
-        -- Range has no event an addon can rely on here, so poll. Never while being dragged.
-        C_Timer.NewTicker(0.1, function() if not bar.moving then show(currentState()) end end)
+        -- Check range every frame so the display follows new API answers immediately.
+        -- Keep polling on the event frame even when the bar is hidden; pause while dragging.
+        self:SetScript("OnUpdate", function() if not bar.moving then show(currentState()) end end)
+    elseif attackEvents[event] then
+        if event == "ACTIONBAR_SLOT_CHANGED" or event == "PLAYER_ENTERING_WORLD" then scanAttackSlots() end
+        if event == "PLAYER_TARGET_CHANGED" then lastSwing, swingLength = -100, 0 end
+        refreshAttack()
+        if bar and not bar.moving then show(currentState()) end
     elseif event == "UPDATE_MACROS" then
         keep.macrosSeen = true
         if db then loadKept(true) end
@@ -393,6 +437,8 @@ SlashCmdList.FOREVERDEADZONE = function(msg)
         say("interact 8yd=%s 28yd=%s | auto shot=%s | combat=%s", tostring(ask(CheckInteractDistance, "target", 3)),
             tostring(ask(CheckInteractDistance, "target", 4)), tostring(ask(C_Spell.IsSpellInRange, AUTO_SHOT, "target")),
             tostring(InCombatLockdown()))
+        say("Attack active=%s (%d slots); melee is inferred from Attack when the 5yd check is unavailable.",
+            tostring(attackActive), #attackSlots)
     else
         say("/dz unlock | lock    move the bar")
         say("/dz scale <0.5-4>    size (default 1.5)")

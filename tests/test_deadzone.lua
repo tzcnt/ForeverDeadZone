@@ -29,7 +29,10 @@ C_Timer = {
     NewTicker = function(_, fn) tickers[#tickers + 1] = fn return {} end,
 }
 local function runTimers() local t = timers timers = {} for _, fn in ipairs(t) do fn() end end
-local function tick() for _, fn in ipairs(tickers) do fn() end end
+local function tick()
+    for _, fn in ipairs(tickers) do fn() end
+    for _, f in ipairs(frames) do if f.scripts.OnUpdate then f.scripts.OnUpdate(f, 1 / 60) end end
+end
 GetTime = function() return now end
 InCombatLockdown = function() return combat end
 UnitClass = function() return "Hunter", world.class or "HUNTER" end
@@ -168,6 +171,67 @@ slash("keep on") slash("keep off")
 assert(#macros == 0, "macro should be deleted on opt-out")
 
 -- 13. Not a hunter: the addon does nothing at all.
+-- Attack switching can precede both the melee-start event and the actual swing.
+-- Timings below reproduce the two entries in the 1.15.1 HunterSwing trace.
+world = { target = "hostile", d = 6, shoot = false }
+local attackSlot, activeAttack, actionReads, slotScans = 7, false, 0, 0
+IsAttackAction = function(slot) slotScans = slotScans + 1 return slot == attackSlot end
+IsCurrentAction = function(slot) actionReads = actionReads + 1 return slot == attackSlot and activeAttack end
+now = 0
+session(nil)
+assert(caption():match("^DEAD ZONE"))
+local scans = slotScans
+for _, entry in ipairs({ {8.252, 8.417, 8.896}, {14.583, 14.852, 15.348} }) do
+    world.d, world.shoot = 6, false
+    now, activeAttack = entry[1], true
+    fire("STOP_AUTOREPEAT_SPELL")
+    assert(ForeverDeadZoneBar.text.textValue:match("^MELEE"), "must show melee before melee-start/swing")
+    now = entry[2] fire("PLAYER_ENTER_COMBAT")
+    assert(caption():match("^MELEE"))
+    now = entry[3] fire("PLAYER_SWING", 3.6, 0)
+    -- The Attack toggle and recent swing remain true while we back out.
+    world.d, world.shoot = 10, true
+    fire("START_AUTOREPEAT_SPELL")
+    assert(ForeverDeadZoneBar.text.textValue:match("^IN RANGE"), "Auto Shot range must win")
+    activeAttack = false fire("PLAYER_LEAVE_COMBAT")
+end
+assert(slotScans == scans, "toggle events must not scan all slots")
+local reads = actionReads
+for i = 1, 60 do tick() end
+assert(actionReads == reads, "frame updates must not poll action state")
+
+-- Direct range answers win; changing the target clears the old swing fallback.
+world.d, world.shoot = 6, false
+activeAttack = true fire("ACTIONBAR_UPDATE_STATE")
+world.items = { [37727] = 5 }
+-- Make the unused item probes unavailable, as on the real client.
+C_Item.IsItemInRange = function(id)
+    local range = world.items and world.items[id]
+    if range then return world.d <= range end
+end
+assert(caption():match("^DEAD ZONE"), "readable five-yard false must beat the toggle")
+world.items = nil
+assert(caption():match("^MELEE"))
+activeAttack = false fire("PLAYER_TARGET_CHANGED")
+assert(caption():match("^DEAD ZONE"), "old target's swing must not imply melee on the new target")
+
+-- Moving Attack to another action slot is supported; unreadable state is not active.
+attackSlot, activeAttack = 101, true
+fire("ACTIONBAR_SLOT_CHANGED", 0)
+assert(caption():match("^MELEE"))
+local hidden = {}
+issecretvalue = function(v) return v == hidden end
+activeAttack = hidden fire("ACTIONBAR_UPDATE_STATE")
+assert(caption():match("^DEAD ZONE"), "secret toggle treated as active")
+IsCurrentAction = function() error("unavailable") end
+fire("ACTIONBAR_UPDATE_STATE")
+assert(caption():match("^DEAD ZONE"))
+IsCurrentAction, IsAttackAction = nil, nil
+fire("ACTIONBAR_SLOT_CHANGED", 0)
+now = 30 fire("PLAYER_SWING", 3.6, 0)
+assert(caption():match("^MELEE"), "clients without action APIs must retain swing fallback")
+
+-- Not a hunter: the addon does nothing at all.
 world.class = "PALADIN"
 frames, SlashCmdList = {}, {}
 assert(loadfile("ForeverDeadZone.lua"))("ForeverDeadZone")

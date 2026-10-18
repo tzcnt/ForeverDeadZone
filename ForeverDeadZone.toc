@@ -2,7 +2,7 @@
 ## Title: |cffd2621fForever|r Dead Zone
 ## Notes: Hunter range indicator for WoW: Forever. Shows whether your target is in shooting range, too far, in melee, or in the dead zone where you can do neither.
 ## Author: Thunderz
-## Version: 0.3.1
+## Version: 0.3.3
 ## SavedVariables: ForeverDeadZoneDB
 ## X-Curse-Project-ID: 1705435
 ## IconTexture: Interface\AddOns\ForeverDeadZone\media\icon.tga
