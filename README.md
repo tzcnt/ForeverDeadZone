@@ -57,12 +57,17 @@ Everything here was measured on the beta client (build 1.60.1.69913), in and out
   Attack state is refreshed on events, including Auto Shot stopping, which can precede
   the melee-start event and the first swing. An active attack is not proof of distance:
   manually enabling Attack outside melee range can produce a false indication.
-  A recent main-hand swing remains the fallback when no active Attack action is seen.
+  A recent main-hand swing is used only when Attack state is unavailable. When Attack
+  switches off, an old swing cannot keep the melee indication active. If Attack itself
+  stays active in the dead zone, this estimate cannot detect the melee exit precisely.
   Auto Shot's range check takes priority when backing out, even while Attack is still active.
 - **Distance** is a bracket, not a number. The game does not tell addons how far away an
   enemy is. It will only answer "is the target within N yards?" for a handful of values of
   N, so the bar shows the gap between the nearest "no" and the nearest "yes". How tight that
   is depends on how many of those checks this client answers; `/dz probe` lists them.
+  When Auto Shot says too close but the distance probes suggest eight yards or more,
+  the bar shows `DEAD ZONE  < 8 yd`, overriding a lingering Attack toggle and treating
+  the small disagreement as the same dead zone. Distance text still follows `/dz distance`.
 
 No libraries, no dependencies, no combat log. Range is checked every frame, with the detailed
 checks skipped without an attackable target. Attack slots are scanned at login or when the

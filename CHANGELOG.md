@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.3.6
+
+- Normalize the conflicting dead-zone distance display to `DEAD ZONE < 8 yd`.
+
+## v0.3.5
+
+- Show DEAD ZONE with the distance estimate when nearby probes imply eight yards or more but Auto Shot is out of range, even if Attack remains active.
+- Preserve the existing melee indication below that boundary.
+
+## v0.3.4
+
+- Let an inactive Attack toggle clear inferred melee immediately, even after a recent swing.
+- Use recent swings only when Attack state is unavailable.
+- Hide contradictory distance brackets when Auto Shot says too close and another check implies eight yards or more.
+
 ## v0.3.3
 
 - Use the Attack toggle for an earlier melee estimate when the five-yard item check is unavailable. Enable the game's Auto Attack / Auto Shot switching for this inference.

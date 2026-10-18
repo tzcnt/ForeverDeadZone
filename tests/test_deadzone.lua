@@ -202,6 +202,7 @@ assert(actionReads == reads, "frame updates must not poll action state")
 
 -- Direct range answers win; changing the target clears the old swing fallback.
 world.d, world.shoot = 6, false
+assert(caption():match("^DEAD ZONE"), "inactive Attack must override a still-recent swing")
 activeAttack = true fire("ACTIONBAR_UPDATE_STATE")
 world.items = { [37727] = 5 }
 -- Make the unused item probes unavailable, as on the real client.
@@ -212,6 +213,15 @@ end
 assert(caption():match("^DEAD ZONE"), "readable five-yard false must beat the toggle")
 world.items = nil
 assert(caption():match("^MELEE"))
+-- Auto Shot says too close, but the interact and item checks imply 8-20 yards.
+world.d = 10
+world.items = { [10645] = 20 }
+assert(caption() == "DEAD ZONE  < 8 yd", "eight-yard lower bound must override active Attack: " .. caption())
+activeAttack = false fire("ACTIONBAR_UPDATE_STATE")
+assert(caption() == "DEAD ZONE  < 8 yd", "normalize dead-zone distance with inactive Attack: " .. caption())
+world.shoot = true
+assert(caption() == "IN RANGE  8-20 yd", "valid ranged bracket should remain visible: " .. caption())
+world.d, world.shoot, world.items = 6, false, nil
 activeAttack = false fire("PLAYER_TARGET_CHANGED")
 assert(caption():match("^DEAD ZONE"), "old target's swing must not imply melee on the new target")
 

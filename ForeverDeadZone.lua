@@ -14,7 +14,7 @@
 --     neither can find the melee edge. Prefer a 5 yard item range check when available.
 --     Otherwise, an active Attack action gives an early melee estimate with automatic
 --     Auto Attack / Auto Shot switching enabled. It is not a direct distance check.
---     A recent PLAYER_SWING remains the fallback when no active Attack action is seen.
+--     A recent PLAYER_SWING is used only when Attack state is unavailable, never when off.
 --     Auto Shot range always wins, including while Attack is still active on the way out.
 --
 -- DISTANCE: no call returns the distance to a hostile target. It is bracketed instead, from
@@ -70,7 +70,7 @@ end
 -- Cache Attack slots on layout changes; refresh their toggles from events, not every frame.
 -- STOP_AUTOREPEAT_SPELL already exposes Attack as active before PLAYER_ENTER_COMBAT
 -- on this client. Waiting for the latter would delay the early melee indication.
-local attackSlots, attackActive = {}, false
+local attackSlots, attackActive = {}, nil
 local attackEvents = {
     START_AUTOREPEAT_SPELL = true, STOP_AUTOREPEAT_SPELL = true,
     PLAYER_ENTER_COMBAT = true, PLAYER_LEAVE_COMBAT = true,
@@ -93,10 +93,12 @@ local function scanAttackSlots()
 end
 
 local function refreshAttack()
-    attackActive = false
+    attackActive = nil
     local isCurrent = actionAPI("IsCurrentAction")
     for _, slot in ipairs(attackSlots) do
-        if ask(isCurrent, slot) == true then attackActive = true return end
+        local current = ask(isCurrent, slot)
+        if current == true then attackActive = true return end
+        if current == false then attackActive = false end
     end
 end
 
@@ -125,7 +127,7 @@ local function bracket(shoot)
         if lo < 8 then lo = 8 end
         if not hi or hi > 35 then hi = 35 end
     end
-    if hi and lo > hi then return nil end          -- checks disagree: say nothing rather than guess
+    if hi and lo >= hi then return nil end        -- empty/conflicting interval: omit the distance
     return lo, hi
 end
 
@@ -134,17 +136,21 @@ local function currentState()
     if not ask(UnitCanAttack, "player", "target") then return nil end
     local shoot = ask(C_Spell.IsSpellInRange, AUTO_SHOT, "target")
     if shoot == nil then return nil end                 -- no ranged weapon, or the client will not say
+    local near = ask(CheckInteractDistance, "target", 4)
     local lo, hi = bracket(shoot)
     local text
     if db.distance and lo then
         text = hi and (lo == 0 and ("< " .. hi .. " yd") or (lo .. "-" .. hi .. " yd")) or ("> " .. lo .. " yd")
     end
     if shoot then return "ranged", text end
-    local near = ask(CheckInteractDistance, "target", 4)
     if near == nil then return nil end
     if not near then return "far", text end
+    -- Auto Shot's near-side boundary wins over small disagreements in the probes:
+    -- show the usual dead-zone distance and override a lingering Attack toggle.
+    if lo and lo >= 8 then return "dead", db.distance and "< 8 yd" or nil end
     local melee = within(5)                              -- exact, when the client answers it
-    if melee == nil then melee = attackActive or GetTime() - lastSwing < swingLength + 0.5 end
+    if melee == nil then melee = attackActive end
+    if melee == nil then melee = GetTime() - lastSwing < swingLength + 0.5 end
     return melee and "melee" or "dead", text
 end
 
